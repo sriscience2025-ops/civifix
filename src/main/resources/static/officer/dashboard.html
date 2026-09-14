@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Department Officer Portal &mdash; CIVICFIX</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body style="background: var(--bg-page); min-height: 100vh; display: flex; flex-direction: column;">
+  <div id="demo-role-bar"></div>
+  <header class="header"></header>
+
+  <main style="flex: 1; padding: 32px 0;">
+    <div class="container">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 28px;">
+        <div>
+          <div style="display: inline-block; background: rgba(30, 41, 59, 0.1); padding: 4px 12px; border-radius: 9999px; font-size: 0.8rem; font-weight: 700; color: var(--primary); margin-bottom: 6px;">
+            MUNICIPAL OPERATIONS COMMAND
+          </div>
+          <h1 style="font-size: 1.75rem; margin-bottom: 4px;" id="officer-title">Department Officer Dispatch Portal</h1>
+          <p style="color: var(--text-muted);">Manage ward incidents, dispatch frontline workers, monitor SLA deadlines, and oversee repairs.</p>
+        </div>
+        <div style="display: flex; gap: 10px;">
+          <button class="btn btn-secondary" onclick="loadOfficerData()">🔄 Refresh Feed</button>
+        </div>
+      </div>
+
+      <!-- Quick Metrics -->
+      <div class="stat-grid" style="margin-bottom: 32px;">
+        <div class="stat-card">
+          <div class="stat-label">Department Complaints</div>
+          <div class="stat-value" id="stat-dept-total">0</div>
+          <div class="stat-subtext">Assigned to department</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Unassigned / Pending Action</div>
+          <div class="stat-value" id="stat-dept-unassigned" style="color: var(--danger);">0</div>
+          <div class="stat-subtext">Requires field worker dispatch</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Active in Field</div>
+          <div class="stat-value" id="stat-dept-active" style="color: var(--primary);">0</div>
+          <div class="stat-subtext">Repairs underway</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">SLA Overdue Escalations</div>
+          <div class="stat-value" id="stat-dept-overdue" style="color: var(--warning);">0</div>
+          <div class="stat-subtext">Past target resolution date</div>
+        </div>
+      </div>
+
+      <!-- Main Department Queue Card -->
+      <div class="card" style="box-shadow: var(--shadow-sm);">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
+          <h2 style="font-size: 1.25rem;">Department Incident Worklist</h2>
+          <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+            <button class="btn btn-sm btn-primary filter-tab active" onclick="filterOfficerIssues('ALL', this)">All</button>
+            <button class="btn btn-sm btn-secondary filter-tab" onclick="filterOfficerIssues('UNASSIGNED', this)">Unassigned</button>
+            <button class="btn btn-sm btn-secondary filter-tab" onclick="filterOfficerIssues('IN_PROGRESS', this)">In Progress</button>
+            <button class="btn btn-sm btn-secondary filter-tab" onclick="filterOfficerIssues('OVERDUE', this)">⚠️ SLA Overdue</button>
+            <button class="btn btn-sm btn-secondary filter-tab" onclick="filterOfficerIssues('RESOLVED', this)">Resolved</button>
+          </div>
+        </div>
+
+        <div id="officer-issues-container">
+          <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+            Loading department complaints...
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Assign Worker Modal -->
+  <div id="assign-modal" class="modal">
+    <div class="modal-dialog" style="max-width: 520px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Dispatch Field Crew</h3>
+        <button type="button" class="modal-close" onclick="closeAssignModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="assign-form" onsubmit="submitWorkerAssignment(event)">
+          <input type="hidden" id="assign-issue-id" />
+          
+          <div class="form-group">
+            <label class="form-label" for="assign-worker-select">Select Frontline Field Worker <span class="required">*</span></label>
+            <select id="assign-worker-select" class="form-control" required>
+              <option value="">-- Choose Field Personnel --</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="assign-deadline">Target SLA Resolution Deadline <span class="required">*</span></label>
+            <input type="datetime-local" id="assign-deadline" class="form-control" required />
+            <div class="form-hint">Standard municipal SLA for high priority is 48 hours.</div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="assign-notes">Dispatch Instructions & Site Notes</label>
+            <textarea id="assign-notes" class="form-control" rows="3" placeholder="Specify required equipment, safety gear, or access instructions..."></textarea>
+          </div>
+
+          <div class="modal-footer" style="padding: 16px 0 0; border: none;">
+            <button type="button" class="btn btn-secondary" onclick="closeAssignModal()">Cancel</button>
+            <button type="submit" id="btn-submit-assign" class="btn btn-primary">Dispatch Worker</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Status Update Modal -->
+  <div id="status-modal" class="modal">
+    <div class="modal-dialog" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Update Incident Status</h3>
+        <button type="button" class="modal-close" onclick="closeStatusModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="status-form" onsubmit="submitStatusUpdate(event)">
+          <input type="hidden" id="status-issue-id" />
+
+          <div class="form-group">
+            <label class="form-label" for="update-status-select">New Operational Status <span class="required">*</span></label>
+            <select id="update-status-select" class="form-control" required>
+              <option value="UNDER_REVIEW">UNDER_REVIEW (Verifying incident authenticity)</option>
+              <option value="ASSIGNED">ASSIGNED (Assigned to crew)</option>
+              <option value="IN_PROGRESS">IN_PROGRESS (Repairs currently active)</option>
+              <option value="RESOLVED">RESOLVED (Repairs finished)</option>
+              <option value="REJECTED">REJECTED (Invalid or out of municipal scope)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="update-priority-select">Adjust Priority Level</label>
+            <select id="update-priority-select" class="form-control">
+              <option value="">Keep current priority</option>
+              <option value="LOW">LOW</option>
+              <option value="MEDIUM">MEDIUM</option>
+              <option value="HIGH">HIGH</option>
+              <option value="CRITICAL">CRITICAL</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="update-reason">Action Justification / Note <span class="required">*</span></label>
+            <textarea id="update-reason" class="form-control" rows="3" placeholder="Provide operational reasoning for the audit trail..." required></textarea>
+          </div>
+
+          <div class="modal-footer" style="padding: 16px 0 0; border: none;">
+            <button type="button" class="btn btn-secondary" onclick="closeStatusModal()">Cancel</button>
+            <button type="submit" id="btn-submit-status" class="btn btn-primary">Update Status</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div>CIVICFIX Department Officer Portal</div>
+      <div>&copy; 2026 Municipal Administration</div>
+    </div>
+  </footer>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/app.js"></script>
+  <script>
+    let deptIssues = [];
+    let deptWorkers = [];
+    let currentFilter = 'ALL';
+
+    async function loadOfficerData() {
+      if (!API.isAuthenticated()) {
+        window.location.href = '/login.html';
+        return;
+      }
+
+      const user = API.getUser();
+      if (user && user.departmentName) {
+        document.getElementById('officer-title').textContent = `${user.departmentName} &mdash; Dispatch Portal`;
+      }
+
+      try {
+        const [issuesRes, workersRes] = await Promise.all([
+          API.get('/api/officer/issues'),
+          API.get('/api/officer/workers')
+        ]);
+
+        if (issuesRes.success && issuesRes.data) {
+          deptIssues = issuesRes.data;
+          renderOfficerIssues();
+          updateMetrics();
+        }
+
+        if (workersRes.success && workersRes.data) {
+          deptWorkers = workersRes.data;
+          const select = document.getElementById('assign-worker-select');
+          select.innerHTML = '<option value="">-- Choose Field Personnel --</option>' +
+            deptWorkers.map(w => `<option value="${w.id}">🛠️ ${w.fullName} (${w.phone || 'Available'})</option>`).join('');
+        }
+      } catch (err) {
+        document.getElementById('officer-issues-container').innerHTML = `
+          <div style="text-align:center; padding:30px; color:var(--danger);">
+            ${err.message || 'Error loading department data'}
+          </div>
+        `;
+      }
+    }
+
+    function updateMetrics() {
+      document.getElementById('stat-dept-total').textContent = deptIssues.length;
+      document.getElementById('stat-dept-unassigned').textContent = deptIssues.filter(i => !i.assignedWorkerId && i.status !== 'RESOLVED' && i.status !== 'CLOSED').length;
+      document.getElementById('stat-dept-active').textContent = deptIssues.filter(i => i.status === 'IN_PROGRESS' || i.status === 'ASSIGNED').length;
+      document.getElementById('stat-dept-overdue').textContent = deptIssues.filter(i => i.deadlineStatus === 'OVERDUE').length;
+    }
+
+    function filterOfficerIssues(filter, btn) {
+      currentFilter = filter;
+      document.querySelectorAll('.filter-tab').forEach(b => b.className = 'btn btn-sm btn-secondary filter-tab');
+      btn.className = 'btn btn-sm btn-primary filter-tab active';
+      renderOfficerIssues();
+    }
+
+    function renderOfficerIssues() {
+      const container = document.getElementById('officer-issues-container');
+      let filtered = deptIssues;
+
+      if (currentFilter === 'UNASSIGNED') {
+        filtered = deptIssues.filter(i => !i.assignedWorkerId && i.status !== 'RESOLVED' && i.status !== 'CLOSED');
+      } else if (currentFilter === 'IN_PROGRESS') {
+        filtered = deptIssues.filter(i => i.status === 'IN_PROGRESS' || i.status === 'ASSIGNED');
+      } else if (currentFilter === 'OVERDUE') {
+        filtered = deptIssues.filter(i => i.deadlineStatus === 'OVERDUE');
+      } else if (currentFilter === 'RESOLVED') {
+        filtered = deptIssues.filter(i => i.status === 'RESOLVED' || i.status === 'CLOSED');
+      }
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-muted);">No complaints in this queue view.</div>';
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Ticket</th>
+                <th>Incident Details</th>
+                <th>Priority</th>
+                <th>Status</th>
+                <th>Assigned Worker</th>
+                <th>SLA Target</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filtered.map(issue => `
+                <tr>
+                  <td>
+                    <strong style="font-family:monospace; color:var(--primary);">${issue.ticketNumber}</strong>
+                  </td>
+                  <td>
+                    <div style="font-weight:600;">${issue.title}</div>
+                    <div style="font-size:0.8rem; color:var(--text-muted);">📍 ${issue.address}, ${issue.area}</div>
+                  </td>
+                  <td>${App.renderPriorityBadge(issue.priority)}</td>
+                  <td>${App.renderStatusBadge(issue.status)}</td>
+                  <td>
+                    ${issue.assignedWorkerName ? `
+                      <span style="font-weight:600; color:var(--text-main);">🛠️ ${issue.assignedWorkerName}</span>
+                    ` : `
+                      <span style="color:var(--danger); font-size:0.85rem; font-weight:700;">⚠️ Unassigned</span>
+                    `}
+                  </td>
+                  <td>
+                    <div>${App.formatDate(issue.targetDeadline)}</div>
+                    ${issue.deadlineStatus ? `<span class="badge badge-${issue.deadlineStatus}" style="font-size:0.7rem;">${issue.deadlineStatus}</span>` : ''}
+                  </td>
+                  <td>
+                    <div style="display:flex; gap:6px;">
+                      <button class="btn btn-primary btn-sm" onclick="openAssignModal(${issue.id})">
+                        ${issue.assignedWorkerId ? 'Reassign' : 'Dispatch'}
+                      </button>
+                      <button class="btn btn-secondary btn-sm" onclick="openStatusModal(${issue.id}, '${issue.status}')">
+                        Status
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function openAssignModal(issueId) {
+      document.getElementById('assign-issue-id').value = issueId;
+      const d = new Date();
+      d.setHours(d.getHours() + 48);
+      document.getElementById('assign-deadline').value = d.toISOString().slice(0, 16);
+      document.getElementById('assign-modal').classList.add('active');
+    }
+
+    function closeAssignModal() {
+      document.getElementById('assign-modal').classList.remove('active');
+      document.getElementById('assign-form').reset();
+    }
+
+    async function submitWorkerAssignment(e) {
+      e.preventDefault();
+      const issueId = document.getElementById('assign-issue-id').value;
+      const workerId = parseInt(document.getElementById('assign-worker-select').value, 10);
+      const deadline = document.getElementById('assign-deadline').value;
+      const notes = document.getElementById('assign-notes').value.trim();
+
+      const btn = document.getElementById('btn-submit-assign');
+      btn.disabled = true;
+      btn.textContent = 'Dispatching...';
+
+      try {
+        const payload = {
+          workerId,
+          targetDeadline: deadline ? new Date(deadline).toISOString() : null,
+          assignmentNotes: notes
+        };
+        const res = await API.post(`/api/issues/${issueId}/assign`, payload);
+        if (res.success) {
+          showToast('Field worker dispatched successfully!', 'success');
+          closeAssignModal();
+          await loadOfficerData();
+        }
+      } catch (err) {
+        showToast(err.message || 'Failed to dispatch worker', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Dispatch Worker';
+      }
+    }
+
+    function openStatusModal(issueId, currentStatus) {
+      document.getElementById('status-issue-id').value = issueId;
+      document.getElementById('update-status-select').value = currentStatus;
+      document.getElementById('status-modal').classList.add('active');
+    }
+
+    function closeStatusModal() {
+      document.getElementById('status-modal').classList.remove('active');
+      document.getElementById('status-form').reset();
+    }
+
+    async function submitStatusUpdate(e) {
+      e.preventDefault();
+      const issueId = document.getElementById('status-issue-id').value;
+      const status = document.getElementById('update-status-select').value;
+      const priority = document.getElementById('update-priority-select').value || null;
+      const reason = document.getElementById('update-reason').value.trim();
+
+      const btn = document.getElementById('btn-submit-status');
+      btn.disabled = true;
+      btn.textContent = 'Updating...';
+
+      try {
+        const payload = { status, priority, reason };
+        const res = await API.put(`/api/issues/${issueId}/status`, payload);
+        if (res.success) {
+          showToast('Incident status updated!', 'success');
+          closeStatusModal();
+          await loadOfficerData();
+        }
+      } catch (err) {
+        showToast(err.message || 'Status update failed', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Update Status';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadOfficerData);
+  </script>
+</body>
+</html>

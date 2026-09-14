@@ -1,0 +1,329 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Field Worker Worklist &mdash; CIVICFIX</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body style="background: var(--bg-page); min-height: 100vh; display: flex; flex-direction: column;">
+  <div id="demo-role-bar"></div>
+  <header class="header"></header>
+
+  <main style="flex: 1; padding: 32px 0;">
+    <div class="container">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 28px;">
+        <div>
+          <div style="display: inline-block; background: rgba(16, 185, 129, 0.1); color: var(--success); padding: 4px 12px; border-radius: 9999px; font-size: 0.8rem; font-weight: 700; margin-bottom: 6px;">
+            FRONTLINE FIELD CREW
+          </div>
+          <h1 style="font-size: 1.75rem; margin-bottom: 4px;">My Assigned Field Tasks</h1>
+          <p style="color: var(--text-muted);">Inspect assigned municipal jobs, update repair progress on site, and upload before/after photographic proof of resolution.</p>
+        </div>
+        <div>
+          <button class="btn btn-secondary" onclick="loadWorkerTasks()">🔄 Refresh Tasks</button>
+        </div>
+      </div>
+
+      <!-- Quick Metrics -->
+      <div class="stat-grid" style="margin-bottom: 32px;">
+        <div class="stat-card">
+          <div class="stat-label">Assigned Work Orders</div>
+          <div class="stat-value" id="stat-worker-total">0</div>
+          <div class="stat-subtext">Total active job assignments</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Work in Progress</div>
+          <div class="stat-value" id="stat-worker-active" style="color: var(--primary);">0</div>
+          <div class="stat-subtext">Underway on site</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Awaiting Citizen Sign-off</div>
+          <div class="stat-value" id="stat-worker-pending" style="color: var(--warning);">0</div>
+          <div class="stat-subtext">Proof submitted</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Completed & Verified</div>
+          <div class="stat-value" id="stat-worker-resolved" style="color: var(--success);">0</div>
+          <div class="stat-subtext">Passed citizen inspection</div>
+        </div>
+      </div>
+
+      <!-- Tasks List Card -->
+      <div class="card" style="box-shadow: var(--shadow-sm);">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 20px;">
+          <h2 style="font-size: 1.25rem;">Assigned Tasks</h2>
+          <div style="display: flex; gap: 8px;">
+            <button class="btn btn-sm btn-primary filter-tab active" onclick="filterWorkerTasks('ALL', this)">All</button>
+            <button class="btn btn-sm btn-secondary filter-tab" onclick="filterWorkerTasks('ACTIVE', this)">Active / Assigned</button>
+            <button class="btn btn-sm btn-secondary filter-tab" onclick="filterWorkerTasks('COMPLETED', this)">Completed</button>
+          </div>
+        </div>
+
+        <div id="worker-tasks-container">
+          <div style="text-align: center; padding: 40px; color: var(--text-muted);">
+            Loading assigned tasks...
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Complete / Progress Modal with Photo Upload -->
+  <div id="resolve-modal" class="modal">
+    <div class="modal-dialog" style="max-width: 600px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Submit Field Resolution & Photo Proof</h3>
+        <button type="button" class="modal-close" onclick="closeResolveModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size: 0.95rem; margin-bottom: 16px;">
+          Upload photographic proof of repair work. Once submitted, the ticket will transition to <strong>VERIFICATION_PENDING</strong> for the reporting citizen to inspect and approve.
+        </p>
+
+        <form id="resolve-form" onsubmit="submitTaskResolution(event)">
+          <input type="hidden" id="resolve-issue-id" />
+
+          <div class="form-group">
+            <label class="form-label" for="res-work-notes">Work Completion Notes <span class="required">*</span></label>
+            <textarea id="res-work-notes" class="form-control" rows="3" placeholder="Describe actions taken (e.g. Cleared debris, replaced 2-inch pipe valve, resurfaced asphalt with cold-mix seal)..." required></textarea>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label">Before Repair Photo (Optional)</label>
+              <input type="file" id="res-before-file" class="form-control" accept="image/*" onchange="uploadResolutionPhoto(event, 'before')" />
+              <input type="hidden" id="res-before-url" />
+              <div id="before-preview-box" style="display:none; margin-top:8px;">
+                <img id="before-preview" src="" style="max-height: 100px; border-radius: var(--radius-sm);" />
+              </div>
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">After Repair Photo <span class="required">*</span></label>
+              <input type="file" id="res-after-file" class="form-control" accept="image/*" required onchange="uploadResolutionPhoto(event, 'after')" />
+              <input type="hidden" id="res-after-url" />
+              <div id="after-preview-box" style="display:none; margin-top:8px;">
+                <img id="after-preview" src="" style="max-height: 100px; border-radius: var(--radius-sm);" />
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-footer" style="padding: 16px 0 0; border: none;">
+            <button type="button" class="btn btn-secondary" onclick="closeResolveModal()">Cancel</button>
+            <button type="submit" id="btn-submit-resolve" class="btn btn-primary">Submit for Verification</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div>CIVICFIX Field Worker Portal</div>
+      <div>&copy; 2026 Municipal Administration</div>
+    </div>
+  </footer>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/app.js"></script>
+  <script>
+    let myTasks = [];
+    let currentFilter = 'ALL';
+
+    async function loadWorkerTasks() {
+      if (!API.isAuthenticated()) {
+        window.location.href = '/login.html';
+        return;
+      }
+
+      const container = document.getElementById('worker-tasks-container');
+      try {
+        const res = await API.get('/api/worker/tasks');
+        if (res.success && res.data) {
+          myTasks = res.data;
+          renderWorkerTasks();
+          updateMetrics();
+        } else {
+          container.innerHTML = '<div style="text-align:center; padding:30px; color:var(--text-muted);">No tasks assigned to your crew.</div>';
+        }
+      } catch (err) {
+        container.innerHTML = `
+          <div style="text-align:center; padding:30px; color:var(--danger);">
+            ${err.message || 'Error loading worker tasks'}
+          </div>
+        `;
+      }
+    }
+
+    function updateMetrics() {
+      document.getElementById('stat-worker-total').textContent = myTasks.length;
+      document.getElementById('stat-worker-active').textContent = myTasks.filter(t => t.status === 'IN_PROGRESS' || t.status === 'ASSIGNED').length;
+      document.getElementById('stat-worker-pending').textContent = myTasks.filter(t => t.status === 'VERIFICATION_PENDING').length;
+      document.getElementById('stat-worker-resolved').textContent = myTasks.filter(t => t.status === 'RESOLVED' || t.status === 'CLOSED').length;
+    }
+
+    function filterWorkerTasks(filter, btn) {
+      currentFilter = filter;
+      document.querySelectorAll('.filter-tab').forEach(b => b.className = 'btn btn-sm btn-secondary filter-tab');
+      btn.className = 'btn btn-sm btn-primary filter-tab active';
+      renderWorkerTasks();
+    }
+
+    function renderWorkerTasks() {
+      const container = document.getElementById('worker-tasks-container');
+      let filtered = myTasks;
+
+      if (currentFilter === 'ACTIVE') {
+        filtered = myTasks.filter(t => t.status === 'ASSIGNED' || t.status === 'IN_PROGRESS');
+      } else if (currentFilter === 'COMPLETED') {
+        filtered = myTasks.filter(t => t.status === 'VERIFICATION_PENDING' || t.status === 'RESOLVED' || t.status === 'CLOSED');
+      }
+
+      if (filtered.length === 0) {
+        container.innerHTML = '<div style="text-align:center; padding:40px; color:var(--text-muted);">No tasks in this category.</div>';
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Ticket</th>
+                <th>Task & Location</th>
+                <th>Priority</th>
+                <th>Current Status</th>
+                <th>Target SLA</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filtered.map(task => `
+                <tr>
+                  <td>
+                    <strong style="font-family:monospace; color:var(--primary); font-size:0.95rem;">${task.ticketNumber}</strong>
+                  </td>
+                  <td>
+                    <div style="font-weight:600;">${task.title}</div>
+                    <div style="font-size:0.8rem; color:var(--text-muted);">📍 ${task.address}, ${task.area}</div>
+                    ${task.internalNotes ? `<div style="font-size:0.8rem; color:var(--info); margin-top:3px;">📝 Instructions: ${task.internalNotes}</div>` : ''}
+                  </td>
+                  <td>${App.renderPriorityBadge(task.priority)}</td>
+                  <td>${App.renderStatusBadge(task.status)}</td>
+                  <td>
+                    <div>${App.formatDate(task.targetDeadline)}</div>
+                    ${task.deadlineStatus ? `<span class="badge badge-${task.deadlineStatus}" style="font-size:0.7rem;">${task.deadlineStatus}</span>` : ''}
+                  </td>
+                  <td>
+                    <div style="display:flex; gap:6px; flex-wrap:wrap;">
+                      ${task.status === 'ASSIGNED' ? `
+                        <button class="btn btn-secondary btn-sm" onclick="startTask(${task.id})">
+                          🚀 Start Job
+                        </button>
+                      ` : ''}
+                      ${task.status === 'IN_PROGRESS' || task.status === 'ASSIGNED' || task.status === 'REOPENED' ? `
+                        <button class="btn btn-primary btn-sm" onclick="openResolveModal(${task.id})">
+                          ✅ Complete & Submit Proof
+                        </button>
+                      ` : `
+                        <span style="font-size:0.8rem; color:var(--text-muted);">Submitted</span>
+                      `}
+                    </div>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    async function startTask(issueId) {
+      try {
+        const payload = {
+          status: 'IN_PROGRESS',
+          reason: 'Worker initiated repair work at site location'
+        };
+        const res = await API.put(`/api/issues/${issueId}/status`, payload);
+        if (res.success) {
+          showToast('Job marked IN PROGRESS', 'info');
+          await loadWorkerTasks();
+        }
+      } catch (e) {
+        showToast(e.message || 'Error updating status', 'error');
+      }
+    }
+
+    function openResolveModal(issueId) {
+      document.getElementById('resolve-issue-id').value = issueId;
+      document.getElementById('resolve-modal').classList.add('active');
+    }
+
+    function closeResolveModal() {
+      document.getElementById('resolve-modal').classList.remove('active');
+      document.getElementById('resolve-form').reset();
+      document.getElementById('before-preview-box').style.display = 'none';
+      document.getElementById('after-preview-box').style.display = 'none';
+    }
+
+    async function uploadResolutionPhoto(e, type) {
+      const file = e.target.files[0];
+      if (!file) return;
+
+      const preview = document.getElementById(`${type}-preview`);
+      preview.src = URL.createObjectURL(file);
+      document.getElementById(`${type}-preview-box`).style.display = 'block';
+
+      try {
+        showToast(`Uploading ${type} photo...`, 'info');
+        const url = await API.uploadImage(file);
+        if (url) {
+          document.getElementById(`res-${type}-url`).value = url;
+          showToast(`${type.toUpperCase()} photo uploaded successfully`, 'success');
+        }
+      } catch (err) {
+        showToast(err.message || 'Upload failed', 'error');
+      }
+    }
+
+    async function submitTaskResolution(e) {
+      e.preventDefault();
+      const issueId = document.getElementById('resolve-issue-id').value;
+      const notes = document.getElementById('res-work-notes').value.trim();
+      const afterUrl = document.getElementById('res-after-url').value;
+      const beforeUrl = document.getElementById('res-before-url').value;
+
+      if (!afterUrl) {
+        showToast('Please upload an After-Repair photo as proof', 'error');
+        return;
+      }
+
+      const btn = document.getElementById('btn-submit-resolve');
+      btn.disabled = true;
+      btn.textContent = 'Submitting...';
+
+      try {
+        const payload = {
+          afterPhotoUrl: afterUrl,
+          beforePhotoUrl: beforeUrl || null,
+          resolutionNotes: notes
+        };
+        const res = await API.post(`/api/issues/${issueId}/resolve`, payload);
+        if (res.success) {
+          showToast('Work submitted! Awaiting citizen verification.', 'success');
+          closeResolveModal();
+          await loadWorkerTasks();
+        }
+      } catch (err) {
+        showToast(err.message || 'Submission failed', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Submit for Verification';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadWorkerTasks);
+  </script>
+</body>
+</html>

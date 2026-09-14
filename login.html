@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign In &mdash; CIVICFIX</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body style="background: var(--bg-page); min-height: 100vh; display: flex; flex-direction: column;">
+  <div id="demo-role-bar"></div>
+  <header class="header"></header>
+
+  <main style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px 20px;">
+    <div class="card" style="max-width: 460px; width: 100%; box-shadow: var(--shadow-lg);">
+      <div style="text-align: center; margin-bottom: 24px;">
+        <div class="brand-icon" style="margin: 0 auto 12px; width: 44px; height: 44px; font-size: 1.3rem;">CF</div>
+        <h2 style="font-size: 1.5rem; margin-bottom: 6px;">Sign In to CIVICFIX</h2>
+        <p style="font-size: 0.9rem;">Select your role or enter credentials to access your portal</p>
+      </div>
+
+      <!-- Quick Role Selector -->
+      <div style="background: var(--bg-subtle); padding: 14px; border-radius: var(--radius-md); margin-bottom: 20px;">
+        <div style="font-size: 0.75rem; font-weight: 700; color: var(--text-muted); text-transform: uppercase; margin-bottom: 8px;">
+          1-Click Demo Login:
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="fillAndLogin('citizen@civicfix.com')">
+            👤 Citizen
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="fillAndLogin('officer.roads@civicfix.com')">
+            👮 Officer
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="fillAndLogin('worker.roads@civicfix.com')">
+            🛠️ Worker
+          </button>
+          <button type="button" class="btn btn-secondary btn-sm" onclick="fillAndLogin('admin@civicfix.com')">
+            🏛️ Admin
+          </button>
+        </div>
+      </div>
+
+      <form id="login-form" onsubmit="handleLogin(event)">
+        <div class="form-group">
+          <label class="form-label" for="login-email">Email Address <span class="required">*</span></label>
+          <input type="email" id="login-email" class="form-control" placeholder="name@example.com" required />
+        </div>
+
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+            <label class="form-label" for="login-password" style="margin-bottom: 0;">Password <span class="required">*</span></label>
+          </div>
+          <input type="password" id="login-password" class="form-control" value="password123" required />
+          <div class="form-hint">Default password for demo accounts is: <code>password123</code></div>
+        </div>
+
+        <button type="submit" id="btn-submit" class="btn btn-primary btn-block btn-lg" style="margin-top: 10px;">
+          Sign In
+        </button>
+      </form>
+
+      <div style="text-align: center; margin-top: 20px; font-size: 0.9rem; color: var(--text-muted);">
+        Don't have an account? <a href="/register.html" style="font-weight: 600;">Register as Citizen</a>
+      </div>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div>CIVICFIX Local Issue Resolution System</div>
+      <div>&copy; 2026 Municipal Administration</div>
+    </div>
+  </footer>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/app.js"></script>
+  <script>
+    function fillAndLogin(email) {
+      document.getElementById('login-email').value = email;
+      document.getElementById('login-password').value = 'password123';
+      handleLogin();
+    }
+
+    async function handleLogin(e) {
+      if (e) e.preventDefault();
+      const email = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-password').value;
+      const btn = document.getElementById('btn-submit');
+
+      if (!email || !password) {
+        showToast('Please enter both email and password', 'error');
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Authenticating...';
+
+      try {
+        const res = await API.login(email, password);
+        if (res.success && res.data) {
+          showToast(`Welcome, ${res.data.fullName}!`, 'success');
+          const redirectUrl = API.getRoleRedirectUrl(res.data.role);
+          setTimeout(() => {
+            window.location.href = redirectUrl;
+          }, 400);
+        }
+      } catch (err) {
+        showToast(err.message || 'Invalid credentials', 'error');
+        btn.disabled = false;
+        btn.textContent = 'Sign In';
+      }
+    }
+  </script>
+</body>
+</html>

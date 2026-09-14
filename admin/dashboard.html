@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>City Administration Oversight &mdash; CIVICFIX</title>
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body style="background: var(--bg-page); min-height: 100vh; display: flex; flex-direction: column;">
+  <div id="demo-role-bar"></div>
+  <header class="header"></header>
+
+  <main style="flex: 1; padding: 32px 0;">
+    <div class="container">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; margin-bottom: 28px;">
+        <div>
+          <div style="display: inline-block; background: rgba(220, 38, 38, 0.1); color: var(--danger); padding: 4px 12px; border-radius: 9999px; font-size: 0.8rem; font-weight: 700; margin-bottom: 6px;">
+            MUNICIPAL EXECUTIVE OVERSIGHT
+          </div>
+          <h1 style="font-size: 1.75rem; margin-bottom: 4px;">City Central Administration</h1>
+          <p style="color: var(--text-muted);">Cross-department SLA monitoring, grievance redressal, personnel assignments, and municipal integrity audit.</p>
+        </div>
+        <div style="display: flex; gap: 10px;">
+          <button class="btn btn-secondary" onclick="loadAdminData()">🔄 Refresh Analytics</button>
+        </div>
+      </div>
+
+      <!-- Quick Metrics -->
+      <div class="stat-grid" style="margin-bottom: 32px;">
+        <div class="stat-card">
+          <div class="stat-label">Total City Issues Logged</div>
+          <div class="stat-value" id="stat-adm-total">0</div>
+          <div class="stat-subtext">Across all municipal wards</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">SLA Overdue Incidents</div>
+          <div class="stat-value" id="stat-adm-overdue" style="color: var(--danger);">0</div>
+          <div class="stat-subtext">Breaching public response timelines</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Pending Citizen Grievances</div>
+          <div class="stat-value" id="stat-adm-grievances" style="color: var(--warning);">0</div>
+          <div class="stat-subtext">Formal escalations requiring action</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Registered Municipal Users</div>
+          <div class="stat-value" id="stat-adm-users" style="color: var(--primary);">0</div>
+          <div class="stat-subtext">Citizens, Officers, Crew</div>
+        </div>
+      </div>
+
+      <!-- Section Tabs -->
+      <div style="display: flex; gap: 10px; margin-bottom: 20px;">
+        <button class="btn btn-primary adm-tab" onclick="switchTab('grievances', this)">Grievance Redressal</button>
+        <button class="btn btn-secondary adm-tab" onclick="switchTab('departments', this)">Department SLAs</button>
+        <button class="btn btn-secondary adm-tab" onclick="switchTab('users', this)">Staff Directory</button>
+      </div>
+
+      <!-- Grievance Redressal Tab -->
+      <div id="tab-grievances" class="card" style="box-shadow: var(--shadow-sm); margin-bottom: 32px;">
+        <h2 style="font-size: 1.25rem; margin-bottom: 16px;">Citizen Escalations & Formal Complaints</h2>
+        <div id="admin-complaints-container">
+          <div style="text-align: center; padding: 30px; color: var(--text-muted);">
+            Loading grievance list...
+          </div>
+        </div>
+      </div>
+
+      <!-- Department Performance Tab -->
+      <div id="tab-departments" class="card" style="box-shadow: var(--shadow-sm); margin-bottom: 32px; display: none;">
+        <h2 style="font-size: 1.25rem; margin-bottom: 16px;">Department Workload & SLA Compliance</h2>
+        <div id="admin-departments-container">
+          <div style="text-align: center; padding: 30px; color: var(--text-muted);">
+            Loading departments...
+          </div>
+        </div>
+      </div>
+
+      <!-- Users Tab -->
+      <div id="tab-users" class="card" style="box-shadow: var(--shadow-sm); margin-bottom: 32px; display: none;">
+        <h2 style="font-size: 1.25rem; margin-bottom: 16px;">Municipal Personnel Directory</h2>
+        <div id="admin-users-container">
+          <div style="text-align: center; padding: 30px; color: var(--text-muted);">
+            Loading users...
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Grievance Action Modal -->
+  <div id="grievance-action-modal" class="modal">
+    <div class="modal-dialog" style="max-width: 500px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Resolve Grievance Escalation</h3>
+        <button type="button" class="modal-close" onclick="closeGrievanceActionModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <form id="grievance-action-form" onsubmit="submitGrievanceAction(event)">
+          <input type="hidden" id="action-complaint-id" />
+
+          <div class="form-group">
+            <label class="form-label" for="action-status">Executive Decision <span class="required">*</span></label>
+            <select id="action-status" class="form-control" required>
+              <option value="INVESTIGATING">INVESTIGATING (Sent inquiry to Department Head)</option>
+              <option value="RESOLVED">RESOLVED (Corrective action issued & closed)</option>
+              <option value="DISMISSED">DISMISSED (No merit found in claim)</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="action-notes">Administrative Findings & Notes <span class="required">*</span></label>
+            <textarea id="action-notes" class="form-control" rows="3" placeholder="State findings, corrective actions taken, and directions issued..." required></textarea>
+          </div>
+
+          <div class="modal-footer" style="padding: 16px 0 0; border: none;">
+            <button type="button" class="btn btn-secondary" onclick="closeGrievanceActionModal()">Cancel</button>
+            <button type="submit" id="btn-submit-action" class="btn btn-primary">Submit Decision</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div>CIVICFIX City Central Administration</div>
+      <div>&copy; 2026 Municipal Administration</div>
+    </div>
+  </footer>
+
+  <script src="/js/api.js"></script>
+  <script src="/js/app.js"></script>
+  <script>
+    let complaints = [];
+    let departments = [];
+    let users = [];
+    let allIssues = [];
+
+    async function loadAdminData() {
+      if (!API.isAuthenticated()) {
+        window.location.href = '/login.html';
+        return;
+      }
+
+      try {
+        const [complaintsRes, deptsRes, usersRes, issuesRes] = await Promise.all([
+          API.get('/api/admin/complaints'),
+          API.get('/api/departments'),
+          API.get('/api/admin/users'),
+          API.get('/api/issues')
+        ]);
+
+        if (complaintsRes.success && complaintsRes.data) complaints = complaintsRes.data;
+        if (deptsRes.success && deptsRes.data) departments = deptsRes.data;
+        if (usersRes.success && usersRes.data) users = usersRes.data;
+        if (issuesRes.success && issuesRes.data) allIssues = issuesRes.data;
+
+        updateAdminMetrics();
+        renderComplaints();
+        renderDepartments();
+        renderUsers();
+      } catch (err) {
+        console.error('Error loading admin data', err);
+      }
+    }
+
+    function updateAdminMetrics() {
+      document.getElementById('stat-adm-total').textContent = allIssues.length;
+      document.getElementById('stat-adm-overdue').textContent = allIssues.filter(i => i.deadlineStatus === 'OVERDUE').length;
+      document.getElementById('stat-adm-grievances').textContent = complaints.filter(c => c.status !== 'RESOLVED' && c.status !== 'DISMISSED').length;
+      document.getElementById('stat-adm-users').textContent = users.length;
+    }
+
+    function switchTab(tabName, btn) {
+      document.querySelectorAll('.adm-tab').forEach(b => b.className = 'btn btn-secondary adm-tab');
+      btn.className = 'btn btn-primary adm-tab';
+
+      document.getElementById('tab-grievances').style.display = tabName === 'grievances' ? 'block' : 'none';
+      document.getElementById('tab-departments').style.display = tabName === 'departments' ? 'block' : 'none';
+      document.getElementById('tab-users').style.display = tabName === 'users' ? 'block' : 'none';
+    }
+
+    function renderComplaints() {
+      const container = document.getElementById('admin-complaints-container');
+      if (complaints.length === 0) {
+        container.innerHTML = '<div style="text-align:center; padding:30px; color:var(--text-muted);">No grievances currently on record.</div>';
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Complainant</th>
+                <th>Ticket Ref</th>
+                <th>Subject & Description</th>
+                <th>Status</th>
+                <th>Admin Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${complaints.map(c => `
+                <tr>
+                  <td>#${c.id}</td>
+                  <td><strong>${c.citizenName || 'Citizen'}</strong></td>
+                  <td>${c.issueTicketNumber ? `<code style="color:var(--primary);">${c.issueTicketNumber}</code>` : 'N/A'}</td>
+                  <td>
+                    <div style="font-weight:600;">${c.subject}</div>
+                    <div style="font-size:0.85rem; color:var(--text-muted);">${c.description}</div>
+                    ${c.resolutionNotes ? `<div style="margin-top:4px; font-size:0.8rem; color:var(--success);">✅ Note: ${c.resolutionNotes}</div>` : ''}
+                  </td>
+                  <td><span class="badge badge-${c.status === 'RESOLVED' ? 'success' : 'warning'}">${c.status}</span></td>
+                  <td>
+                    ${c.status !== 'RESOLVED' ? `
+                      <button class="btn btn-primary btn-sm" onclick="openGrievanceAction(${c.id})">
+                        Take Action
+                      </button>
+                    ` : `
+                      <span style="font-size:0.8rem; color:var(--success);">Closed</span>
+                    `}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function renderDepartments() {
+      const container = document.getElementById('admin-departments-container');
+      container.innerHTML = `
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Department Name</th>
+                <th>Code</th>
+                <th>Active Issues</th>
+                <th>Overdue Count</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${departments.map(d => {
+                const deptIssues = allIssues.filter(i => i.departmentId === d.id);
+                const overdue = deptIssues.filter(i => i.deadlineStatus === 'OVERDUE').length;
+                return `
+                  <tr>
+                    <td>#${d.id}</td>
+                    <td><strong>${d.name}</strong></td>
+                    <td><code>${d.code}</code></td>
+                    <td>${deptIssues.length}</td>
+                    <td>
+                      ${overdue > 0 ? `
+                        <span class="badge badge-danger">${overdue} Overdue</span>
+                      ` : `
+                        <span class="badge badge-success">0 Overdue</span>
+                      `}
+                    </td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function renderUsers() {
+      const container = document.getElementById('admin-users-container');
+      container.innerHTML = `
+        <div class="table-responsive">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Username</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th>Department</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${users.map(u => `
+                <tr>
+                  <td><strong>${u.fullName}</strong></td>
+                  <td><code>${u.username}</code></td>
+                  <td>${u.email}</td>
+                  <td><span class="badge badge-${u.role === 'ADMIN' ? 'danger' : (u.role === 'OFFICER' ? 'primary' : 'warning')}">${u.role}</span></td>
+                  <td>${u.departmentName || '&mdash;'}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+    }
+
+    function openGrievanceAction(complaintId) {
+      document.getElementById('action-complaint-id').value = complaintId;
+      document.getElementById('grievance-action-modal').classList.add('active');
+    }
+
+    function closeGrievanceActionModal() {
+      document.getElementById('grievance-action-modal').classList.remove('active');
+      document.getElementById('grievance-action-form').reset();
+    }
+
+    async function submitGrievanceAction(e) {
+      e.preventDefault();
+      const id = document.getElementById('action-complaint-id').value;
+      const status = document.getElementById('action-status').value;
+      const notes = document.getElementById('action-notes').value.trim();
+
+      const btn = document.getElementById('btn-submit-action');
+      btn.disabled = true;
+      btn.textContent = 'Submitting...';
+
+      try {
+        const payload = { status, resolutionNotes: notes };
+        const res = await API.put(`/api/admin/complaints/${id}`, payload);
+        if (res.success) {
+          showToast('Grievance updated successfully!', 'success');
+          closeGrievanceActionModal();
+          await loadAdminData();
+        }
+      } catch (err) {
+        showToast(err.message || 'Action failed', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Submit Decision';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', loadAdminData);
+  </script>
+</body>
+</html>
