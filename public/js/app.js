@@ -28,6 +28,7 @@ const App = {
           <button class="demo-chip" onclick="App.quickLogin('officer.roads@civicfix.com', 'password123', 'ROLE_DEPARTMENT_OFFICER')">👮 Officer (Roads)</button>
           <button class="demo-chip" onclick="App.quickLogin('worker.roads@civicfix.com', 'password123', 'ROLE_FIELD_WORKER')">🛠️ Worker (Rajesh)</button>
           <button class="demo-chip" onclick="App.quickLogin('admin@civicfix.com', 'password123', 'ROLE_ADMIN')">🏛️ Admin (Sarah)</button>
+          <button class="demo-chip" style="background:#4285f4;color:#fff;font-weight:600;" onclick="API.initiateGoogleLogin()">🌐 Google Sign In</button>
         </div>
       </div>
     `;
@@ -74,7 +75,10 @@ const App = {
               <div id="notif-list" style="font-size:0.85rem; color:#64748b;">Loading notifications...</div>
             </div>
           </div>
-          <a href="${dashUrl}" class="btn btn-primary btn-sm">Portal: ${user.fullName.split(' ')[0]} (${cleanRole})</a>
+          <a href="${dashUrl}" class="btn btn-primary btn-sm" style="display:inline-flex;align-items:center;gap:6px;">
+            ${user.avatarUrl ? `<img src="${user.avatarUrl}" style="width:20px;height:20px;border-radius:50%;object-fit:cover;" referrerPolicy="no-referrer" alt="Avatar" />` : (user.authProvider === 'google' ? '🌐 ' : '')}
+            Portal: ${user.fullName.split(' ')[0]} (${cleanRole})
+          </a>
           <button onclick="API.logout()" class="btn btn-secondary btn-sm" title="Sign Out">Sign Out</button>
         </div>
       `;

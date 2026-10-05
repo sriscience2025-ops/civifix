@@ -193,6 +193,7 @@
     let allPublicIssues = [];
 
     async function loadPublicData() {
+      // Load departments for filter
       try {
         const deptRes = await API.get('/api/departments');
         if (deptRes.success && deptRes.data) {
@@ -209,6 +210,7 @@
         console.error('Error loading depts', e);
       }
 
+      // Load issues
       try {
         const issuesRes = await API.get('/api/issues');
         if (issuesRes.success && issuesRes.data) {
@@ -220,7 +222,16 @@
         console.error('Error loading issues', e);
       }
 
-      trackTicketByNumber('CF-2026-1001');
+      // Check if quick_track ticket was saved from dashboard, otherwise track default ticket
+      const savedTrack = localStorage.getItem('quick_track');
+      if (savedTrack) {
+        localStorage.removeItem('quick_track');
+        const inputEl = document.getElementById('ticket-input');
+        if (inputEl) inputEl.value = savedTrack;
+        trackTicketByNumber(savedTrack);
+      } else {
+        trackTicketByNumber('CF-2026-1001');
+      }
     }
 
     function updateMetrics(issues) {
@@ -304,24 +315,74 @@
 
     async function trackTicketByNumber(ticketNumber) {
       const resContainer = document.getElementById('track-result');
-      resContainer.innerHTML = '<div style="text-align:center; padding:30px; color:var(--text-muted);">Searching ticket records...</div>';
+      if (!resContainer) return;
+      
+      const cleanNum = (ticketNumber || '').replace(/^#/, '').trim();
+      if (!cleanNum) {
+        resContainer.innerHTML = `
+          <div style="text-align:center; padding:24px; color:var(--text-muted);">
+            Please enter a ticket number to track municipal resolution progress.
+          </div>
+        `;
+        return;
+      }
+
+      resContainer.innerHTML = '<div style="text-align:center; padding:30px; color:var(--text-muted);">Searching municipal ticket records...</div>';
 
       try {
-        const res = await API.get(`/api/issues/track/${ticketNumber}`);
-        if (res.success && res.data) {
-          const issue = res.data;
-          renderTrackedIssue(issue);
-        } else {
-          resContainer.innerHTML = `
-            <div style="text-align:center; padding:30px; color:var(--danger);">
-              No issue found with ticket number: <strong>${ticketNumber}</strong>
-            </div>
-          `;
+        const res = await API.get(`/api/issues/track/${encodeURIComponent(cleanNum)}`);
+        if (res && res.success && res.data) {
+          renderTrackedIssue(res.data);
+          return;
         }
-      } catch (err) {
+
+        // If API returned without data, check local fallback
+        const local = API.findLocalIssue ? API.findLocalIssue(cleanNum) : null;
+        if (local) {
+          renderTrackedIssue(local);
+          return;
+        }
+
         resContainer.innerHTML = `
-          <div style="text-align:center; padding:30px; color:var(--danger);">
-            ${err.message || 'Issue not found'}
+          <div style="text-align:center; padding:32px 20px; background:#f8fafc; border:1px solid var(--border-color); border-radius:var(--radius-md);">
+            <div style="font-size:1.1rem; font-weight:700; color:var(--text-main); margin-bottom:6px;">
+              Ticket Not Found: <span style="color:var(--primary); font-family:monospace;">#${cleanNum}</span>
+            </div>
+            <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:16px;">
+              We couldn't find an issue matching this ticket reference in municipal records.
+            </p>
+            <div style="font-size:0.85rem; color:var(--text-muted);">
+              Try one of these active public demo tickets:
+              <div style="display:flex; justify-content:center; gap:8px; margin-top:10px; flex-wrap:wrap;">
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="quickTrack('CF-2026-1001')">CF-2026-1001 (Roads)</button>
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="quickTrack('CF-2026-1002')">CF-2026-1002 (Electric)</button>
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="quickTrack('CF-2026-1003')">CF-2026-1003 (Water)</button>
+                <button type="button" class="btn btn-sm btn-outline-primary" onclick="quickTrack('CF-2026-1004')">CF-2026-1004 (Sanitation)</button>
+              </div>
+            </div>
+          </div>
+        `;
+      } catch (err) {
+        console.error('Tracking fetch notice, attempting local store fallback:', err);
+        const local = API.findLocalIssue ? API.findLocalIssue(cleanNum) : null;
+        if (local) {
+          renderTrackedIssue(local);
+          return;
+        }
+
+        resContainer.innerHTML = `
+          <div style="text-align:center; padding:32px 20px; background:#f8fafc; border:1px solid var(--border-color); border-radius:var(--radius-md);">
+            <div style="font-size:1.1rem; font-weight:700; color:var(--text-main); margin-bottom:6px;">
+              Ticket Not Found: <span style="color:var(--primary); font-family:monospace;">#${cleanNum}</span>
+            </div>
+            <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:16px;">
+              Please check your ticket reference or click a sample ticket below:
+            </p>
+            <div style="display:flex; justify-content:center; gap:8px; flex-wrap:wrap;">
+              <button type="button" class="btn btn-sm btn-outline-primary" onclick="quickTrack('CF-2026-1001')">CF-2026-1001</button>
+              <button type="button" class="btn btn-sm btn-outline-primary" onclick="quickTrack('CF-2026-1002')">CF-2026-1002</button>
+              <button type="button" class="btn btn-sm btn-outline-primary" onclick="quickTrack('CF-2026-1003')">CF-2026-1003</button>
+            </div>
           </div>
         `;
       }
@@ -329,48 +390,54 @@
 
     function renderTrackedIssue(issue) {
       const resContainer = document.getElementById('track-result');
+      if (!resContainer) return;
+
+      const beforeImg = issue.beforePhoto || issue.beforeProofUrl || issue.citizenPhoto || (issue.imageUrls && issue.imageUrls[0]);
+      const afterImg = issue.afterPhoto || issue.afterProofUrl;
+      const citizenImg = issue.citizenPhoto || (issue.imageUrls && issue.imageUrls[0]);
 
       let proofSection = '';
-      if (issue.beforePhoto || issue.afterPhoto) {
+      if (beforeImg || afterImg) {
         proofSection = `
           <div style="margin:24px 0;">
             <h4 style="margin-bottom:12px;">On-Site Field Resolution Evidence</h4>
             <div class="proof-comparison">
               <div class="proof-card">
                 <div class="proof-card-header before">Before Repair</div>
-                <img src="${issue.beforePhoto || issue.citizenPhoto}" alt="Before Repair" />
+                <img src="${beforeImg || 'https://images.unsplash.com/photo-1515162816999-a0c47dc192f7?auto=format&fit=crop&w=800&q=80'}" alt="Before Repair" />
               </div>
               <div class="proof-card">
                 <div class="proof-card-header after">After Resolution</div>
-                <img src="${issue.afterPhoto || 'https://images.unsplash.com/photo-1590402494682-cd3fb53b1f70?auto=format&fit=crop&w=600&q=80'}" alt="After Repair" />
+                <img src="${afterImg || 'https://images.unsplash.com/photo-1590402494682-cd3fb53b1f70?auto=format&fit=crop&w=600&q=80'}" alt="After Repair" />
               </div>
             </div>
           </div>
         `;
-      } else if (issue.citizenPhoto) {
+      } else if (citizenImg) {
         proofSection = `
           <div style="margin:20px 0;">
             <h4 style="margin-bottom:8px;">Citizen Submitted Photo</h4>
             <div style="max-width:320px; border-radius:var(--radius-md); overflow:hidden; border:1px solid var(--border-color);">
-              <img src="${issue.citizenPhoto}" alt="Citizen submission" style="width:100%; height:200px; object-fit:cover;" />
+              <img src="${citizenImg}" alt="Citizen submission" style="width:100%; height:200px; object-fit:cover;" />
             </div>
           </div>
         `;
       }
 
+      const historyData = issue.history || issue.statusHistory || [];
       let historyList = '';
-      if (issue.history && issue.history.length > 0) {
+      if (historyData.length > 0) {
         historyList = `
           <div style="margin-top:24px;">
             <h4 style="margin-bottom:12px;">Resolution Audit Log & History</h4>
             <ul class="timeline">
-              ${issue.history.map(h => `
+              ${historyData.map(h => `
                 <li class="timeline-item">
                   <div class="timeline-marker"></div>
                   <div class="timeline-content">
                     <div class="timeline-time">${App.formatDate(h.timestamp)}</div>
-                    <div class="timeline-title">${App.renderStatusBadge(h.newStatus)}</div>
-                    <div style="font-size:0.85rem; color:var(--text-main); font-weight:600;">Action by: ${h.changedByName || 'System'}</div>
+                    <div class="timeline-title">${App.renderStatusBadge(h.newStatus || h.status)}</div>
+                    <div style="font-size:0.85rem; color:var(--text-main); font-weight:600;">Action by: ${h.changedByName || h.changedBy || 'Municipal Staff'}</div>
                     <div style="font-size:0.8rem; color:var(--text-muted); margin-top:2px;">${h.changeReason || ''}</div>
                   </div>
                 </li>
@@ -380,12 +447,15 @@
         `;
       }
 
+      const addressStr = issue.address || (issue.location && issue.location.address) || 'Municipal Location';
+      const areaStr = issue.area || (issue.location && issue.location.area) || 'Metro City';
+
       resContainer.innerHTML = `
         <div style="border-top:1px solid var(--border-color); padding-top:24px;">
           <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:12px; margin-bottom:16px;">
             <div>
               <div style="display:flex; align-items:center; gap:10px; margin-bottom:6px;">
-                <span style="font-size:1.3rem; font-weight:800; color:var(--primary);">${issue.ticketNumber}</span>
+                <span style="font-size:1.3rem; font-weight:800; color:var(--primary); font-family:monospace;">${issue.ticketNumber}</span>
                 ${App.renderStatusBadge(issue.status)}
                 ${App.renderPriorityBadge(issue.priority)}
                 ${issue.deadlineStatus ? `<span class="badge badge-${issue.deadlineStatus}">${issue.deadlineStatus.replace('_', ' ')}</span>` : ''}
@@ -397,16 +467,18 @@
             </button>
           </div>
 
+          <!-- Stepper -->
           ${App.renderStepper(issue.status)}
 
+          <!-- Details Grid -->
           <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:16px; background:var(--bg-subtle); padding:16px; border-radius:var(--radius-md); margin:20px 0;">
             <div>
               <div style="font-size:0.75rem; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Assigned Department</div>
-              <div style="font-weight:600;">${issue.departmentName}</div>
+              <div style="font-weight:600;">${issue.departmentName || 'Municipal Dept'}</div>
             </div>
             <div>
               <div style="font-size:0.75rem; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Location & Area</div>
-              <div style="font-weight:600;">${issue.address}, ${issue.area}</div>
+              <div style="font-weight:600;">${addressStr}, ${areaStr}</div>
             </div>
             <div>
               <div style="font-size:0.75rem; color:var(--text-muted); font-weight:700; text-transform:uppercase;">Assigned Field Crew</div>
@@ -420,7 +492,7 @@
 
           <div style="margin:16px 0;">
             <div style="font-weight:700; font-size:0.9rem; margin-bottom:4px;">Citizen Problem Description:</div>
-            <p style="font-size:0.95rem; color:var(--text-main);">${issue.description}</p>
+            <p style="font-size:0.95rem; color:var(--text-main);">${issue.description || 'No description provided'}</p>
           </div>
 
           ${proofSection}
